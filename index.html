@@ -1,87 +1,236 @@
-<!DOCTYPE html>
 <html>
 <head>
     <title>Quant Multi-Timeframe Cluster & Forecast Analyzer</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        select, input, button { margin: 5px 0; }
-        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; }
-        th { background-color: #f2f2f2; }
-        .strongest { background-color: #ffeb3b; }
+        body { 
+            font-family: 'JetBrains Mono', 'SF Mono', monospace; 
+            padding: 20px; 
+            background: #0f1419;
+            color: #e8eaed;
+            margin: 0;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            background: linear-gradient(135deg, #00bcd4, #4dd0e1);
+            color: #0f1419;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .controls {
+            background: #1a1f29;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        select, input, button { 
+            margin: 5px 10px 5px 0; 
+            padding: 8px 12px;
+            background: #2d3748;
+            color: #e8eaed;
+            border: 1px solid #4a5568;
+            border-radius: 4px;
+        }
+        button {
+            background: linear-gradient(135deg, #00bcd4, #4dd0e1);
+            color: #0f1419;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            background: #1a1f29;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        th, td { 
+            border: 1px solid #2d3748; 
+            padding: 12px 8px; 
+            text-align: left;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+        th { 
+            background: #2d3748; 
+            font-weight: bold;
+            color: #00bcd4;
+        }
+        .strongest { 
+            background: linear-gradient(135deg, rgba(0, 188, 212, 0.2), rgba(77, 208, 225, 0.1));
+            font-weight: bold;
+        }
+        .profit { color: #4caf50; font-weight: bold; }
+        .loss { color: #f44336; font-weight: bold; }
+        .section {
+            background: #1a1f29;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section h3 {
+            color: #00bcd4;
+            margin-top: 0;
+            border-bottom: 2px solid #2d3748;
+            padding-bottom: 10px;
+        }
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .forecast-card {
+            background: #1a1f29;
+            border: 1px solid #2d3748;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .forecast-card.primary { border-left: 4px solid #00bcd4; }
+        .forecast-card.secondary { border-left: 4px solid #4dd0e1; }
+        .forecast-card.tertiary { border-left: 4px solid #ff9800; }
+        .big-number {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+        }
+        .data-point {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 4px 0;
+            border-bottom: 1px solid #2d3748;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .badge.up { background: #4caf50; color: white; }
+        .badge.down { background: #f44336; color: white; }
+        .badge.confluence { background: #2d3748; color: #00bcd4; border: 1px solid #00bcd4; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-<h2>Quant Multi-Timeframe Cluster & Forecast Analyzer</h2>
+<div class="container">
+    <div class="header">
+        <h1>🔬 Quant Multi-Timeframe Cluster & Forecast Analyzer</h1>
+        <p>Professional Hedge Fund Level Analysis Platform</p>
+    </div>
 
-<p>Upload Excel (.xlsx) with OHLC data (Date,Open,High,Low,Close):</p>
-<input type="file" id="excelFile" accept=".xlsx"/>
-<br>
-<label for="sheetSelect">Select Sheet:</label>
-<select id="sheetSelect"></select>
-<br>
-<label for="yearFilter">Filter by Year (optional):</label>
-<input type="number" id="yearFilter" placeholder="e.g., 2025">
-<br>
-<button onclick="loadSheetData()">Load Sheet Data</button>
-<button onclick="analyzeData()">Analyze</button>
-<button onclick="downloadCSV()">Download CSV</button>
+    <div class="controls">
+        <p><strong>Upload CSV with OHLC data (Date,Open,High,Low,Close):</strong></p>
+        <input type="file" id="csvFile" accept=".csv"/>
+        <br><br>
+        <label for="yearFilter">Filter by Year (optional):</label>
+        <input type="number" id="yearFilter" placeholder="e.g., 2025">
+        <br><br>
+        <button onclick="loadCSVData()">Load CSV Data</button>
+        <button onclick="analyzeData()">Analyze Data</button>
+        <button onclick="downloadCSV()">Download Results CSV</button>
+    </div>
 
-<h3>Top Clusters / Zones</h3>
-<div id="results"></div>
+    <div class="section">
+        <h3>📊 Top Clusters / Zones (Multi-Timeframe Analysis)</h3>
+        <div id="results">Upload and analyze data to see results...</div>
+    </div>
 
-<h3>Best Trading Days (Volatility-Adjusted)</h3>
-<div id="bestDays"></div>
+    <div class="section">
+        <h3>⚡ Best Trading Days (Volatility-Adjusted)</h3>
+        <div id="bestDays">Upload and analyze data to see results...</div>
+    </div>
 
-<h3>Next-Day Forecast</h3>
-<div id="nextDayForecast"></div>
+    <div class="forecast-grid">
+        <div class="forecast-card primary">
+            <h3>🎯 Next-Day Forecast</h3>
+            <div id="nextDayForecast">Upload and analyze data to see forecast...</div>
+        </div>
 
-<h3>Weekly Forecast</h3>
-<div id="weeklyForecast"></div>
+        <div class="forecast-card secondary">
+            <h3>📅 Weekly Forecast</h3>
+            <div id="weeklyForecast">Upload and analyze data to see forecast...</div>
+        </div>
 
-<h3>Monthly Forecast</h3>
-<div id="monthlyForecast"></div>
+        <div class="forecast-card tertiary">
+            <h3>📈 Monthly Forecast</h3>
+            <div id="monthlyForecast">Upload and analyze data to see forecast...</div>
+        </div>
+    </div>
+</div>
 
 <script>
-let excelData = {};
-let ohlcRows = [];
+let csvData = [];
 let clusterArrayGlobal = [];
 const maxDaysForExpectedReturn = [1,3,5,10];
 
-document.getElementById('excelFile').addEventListener('change', e=>{
+// Load CSV file
+document.getElementById('csvFile').addEventListener('change', e=>{
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
     reader.onload = evt=>{
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, {type:'array'});
-        excelData = workbook;
-        const sheetSelect = document.getElementById('sheetSelect');
-        sheetSelect.innerHTML = '';
-        workbook.SheetNames.forEach(name=>{
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.text = name;
-            sheetSelect.appendChild(opt);
-        });
-        alert('Sheets loaded! Select a sheet and click Load Sheet Data.');
+        const csvText = evt.target.result;
+        parseCSV(csvText);
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsText(file);
 });
 
-function loadSheetData() {
-    const sheetName = document.getElementById('sheetSelect').value;
-    if(!sheetName) { alert('Select a sheet!'); return; }
-    const ws = excelData.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(ws, {defval: ""});
-    ohlcRows = jsonData.map(r=>({
-        date: r.Date || r.date,
-        open: parseFloat(r.Open || r.open),
-        high: parseFloat(r.High || r.high),
-        low: parseFloat(r.Low || r.low),
-        close: parseFloat(r.Close || r.close)
-    })).filter(r=>r.date && !isNaN(r.open) && !isNaN(r.high) && !isNaN(r.low) && !isNaN(r.close));
-    alert(`Loaded ${ohlcRows.length} rows from sheet: ${sheetName}`);
+function parseCSV(csvText) {
+    const lines = csvText.trim().split('\n');
+    const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+    
+    // Find column indices
+    const dateIndex = headers.findIndex(h => h.includes('date') || h.includes('time'));
+    const openIndex = headers.findIndex(h => h.includes('open'));
+    const highIndex = headers.findIndex(h => h.includes('high'));
+    const lowIndex = headers.findIndex(h => h.includes('low'));
+    const closeIndex = headers.findIndex(h => h.includes('close'));
+
+    if (dateIndex === -1 || openIndex === -1 || highIndex === -1 || lowIndex === -1 || closeIndex === -1) {
+        alert('CSV must contain Date, Open, High, Low, Close columns');
+        return;
+    }
+
+    csvData = [];
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        
+        if (values.length < Math.max(dateIndex, openIndex, highIndex, lowIndex, closeIndex) + 1) {
+            continue;
+        }
+
+        const row = {
+            date: values[dateIndex],
+            open: parseFloat(values[openIndex]),
+            high: parseFloat(values[highIndex]),
+            low: parseFloat(values[lowIndex]),
+            close: parseFloat(values[closeIndex])
+        };
+
+        if (!isNaN(row.open) && !isNaN(row.high) && !isNaN(row.low) && !isNaN(row.close)) {
+            csvData.push(row);
+        }
+    }
+    
+    alert(`Loaded ${csvData.length} data points from CSV file.`);
+}
+
+function loadCSVData() {
+    if (csvData.length === 0) {
+        alert('Please select and load a CSV file first!');
+        return;
+    }
+    alert(`${csvData.length} rows loaded and ready for analysis.`);
 }
 
 function computeExpectedRange(clusterPrice, historyArray){
@@ -112,12 +261,12 @@ function computeProbabilisticRange(clusterHistory, futureDays=5){
 
 function analyzeData() {
     const yearFilter = document.getElementById('yearFilter').value.trim();
-    if(!ohlcRows.length){ alert("Load sheet data first!"); return; }
+    if(!csvData.length){ alert("Load CSV data first!"); return; }
 
     let clustersDaily = {}, clustersWeekly = {}, clustersMonthly = {};
     let bestDays = [], rangeHistory = [], prevClose = null, trueRanges = [];
     let weeklyMap = {}, monthlyMap = {};
-    let sortedRows = ohlcRows.map(r=>{
+    let sortedRows = csvData.map(r=>{
         let d = new Date(r.date);
         return {...r, dateObj:d};
     }).sort((a,b)=>a.dateObj-b.dateObj);
@@ -131,12 +280,15 @@ function analyzeData() {
     }
     function getMonth(d){ return d.getMonth()+1; }
 
+    // Aggregate daily clusters and compute metrics
     sortedRows.forEach((r,i)=>{
         if(yearFilter && r.dateObj.getFullYear()!=parseInt(yearFilter)) return;
 
         r.dailyAvg = (r.open+r.high+r.low+r.close)/4;
         r.dailyRange = r.high-r.low;
         r.direction = r.close>r.open?"Up":"Down";
+
+        // Enhanced momentum & returns
         r.momentum1 = i>=1 ? (r.close-sortedRows[i-1].close)/sortedRows[i-1].close : 0;
         r.momentum3 = i>=3 ? (r.close-sortedRows[i-3].close)/sortedRows[i-3].close : 0;
         r.momentum5 = i>=5 ? (r.close-sortedRows[i-5].close)/sortedRows[i-5].close : 0;
@@ -149,6 +301,7 @@ function analyzeData() {
             }
         });
 
+        // True Range calculation
         if(prevClose!==null){
             let tr = Math.max(r.high-r.low, Math.abs(r.high-prevClose), Math.abs(r.low-prevClose));
             trueRanges.push(tr);
@@ -156,6 +309,7 @@ function analyzeData() {
         prevClose = r.close;
         rangeHistory.push(r.dailyRange);
 
+        // Daily cluster
         let clusterDaily = (Math.floor(r.dailyAvg/0.002)*0.002).toFixed(3);
         if(!clustersDaily[clusterDaily]) clustersDaily[clusterDaily]={count:0, up:0, down:0, lastDate:r.dateObj, returns:[], history:[]};
         clustersDaily[clusterDaily].count +=1;
@@ -169,6 +323,7 @@ function analyzeData() {
             }
         });
 
+        // Weekly clusters
         let week = getWeekNumber(r.dateObj);
         if(!weeklyMap[week]) weeklyMap[week]=[];
         weeklyMap[week].push(r);
@@ -177,6 +332,7 @@ function analyzeData() {
         clustersWeekly[clusterWeekly].count +=1;
         clustersWeekly[clusterWeekly].history.push(r);
 
+        // Monthly clusters
         let month = getMonth(r.dateObj);
         if(!monthlyMap[month]) monthlyMap[month]=[];
         monthlyMap[month].push(r);
@@ -188,25 +344,56 @@ function analyzeData() {
         bestDays.push({date:r.dateObj, range:r.dailyRange, avgPrice:r.dailyAvg});
     });
 
-    // Best trading days
+    // Calculate ATR14
+    sortedRows.forEach((r,i)=>{
+        if(i>=14 && trueRanges.length >= i){
+            let sumTR = trueRanges.slice(Math.max(0, i-14), i).reduce((a,b)=>a+b,0);
+            r.atr14 = sumTR/Math.min(14, i);
+        } else { 
+            r.atr14 = null; 
+        }
+    });
+
+    // Enhanced confluence calculation
+    function getConfluence(cluster){
+        let cDaily = clustersDaily[cluster] ? 1 : 0;
+        let cWeekly = Object.keys(clustersWeekly).some(w=>w.endsWith(`-${cluster}`)) ? 1 : 0;
+        let cMonthly = Object.keys(clustersMonthly).some(m=>m.endsWith(`-${cluster}`)) ? 1 : 0;
+        return cDaily + cWeekly + cMonthly;
+    }
+
+    // Best trading days with Z-Score
     const meanRange = rangeHistory.reduce((a,b)=>a+b,0)/rangeHistory.length;
     const stdRange = Math.sqrt(rangeHistory.map(x=>Math.pow(x-meanRange,2)).reduce((a,b)=>a+b,0)/rangeHistory.length);
     bestDays.forEach(d=>d.zScore=(d.range-meanRange)/stdRange);
     bestDays.sort((a,b)=>b.zScore-a.zScore);
-    let bestHtml = "<table><tr><th>Date</th><th>Daily Range</th><th>Z-Score</th></tr>";
+    
+    let bestHtml = `<table>
+        <tr>
+            <th>Date</th>
+            <th>Daily Range</th>
+            <th>Z-Score</th>
+            <th>Avg Price</th>
+        </tr>`;
     for(let i=0;i<Math.min(10,bestDays.length);i++){
-        bestHtml += `<tr><td>${bestDays[i].date.toISOString().split('T')[0]}</td><td>${bestDays[i].range.toFixed(4)}</td><td>${bestDays[i].zScore.toFixed(2)}</td></tr>`;
+        let zScoreClass = bestDays[i].zScore > 2 ? 'profit' : bestDays[i].zScore > 1 ? 'loss' : '';
+        bestHtml += `<tr>
+            <td>${bestDays[i].date.toISOString().split('T')[0]}</td>
+            <td>${bestDays[i].range.toFixed(4)}</td>
+            <td class="${zScoreClass}">${bestDays[i].zScore.toFixed(2)}</td>
+            <td>${bestDays[i].avgPrice.toFixed(4)}</td>
+        </tr>`;
     }
     bestHtml += "</table>";
     document.getElementById('bestDays').innerHTML = bestHtml;
 
-    // Build cluster array
+    // Build comprehensive cluster array
     let clusterArray = Object.keys(clustersDaily).map(cluster=>{
         let obj = clustersDaily[cluster];
         let avgRange = obj.history.map(d=>d.dailyRange).reduce((a,b)=>a+b,0)/obj.count || 0.001;
         let upPct = obj.up/obj.count;
         let recencyFactor = 1/((new Date()-obj.lastDate)/(1000*60*60*24)+1);
-        let confluence = 1; // simple placeholder, can add multi-timeframe weighting
+        let confluence = getConfluence(cluster);
         let weightedScore = obj.count*(1/avgRange)*upPct*recencyFactor*confluence;
 
         let expReturns={};
@@ -219,55 +406,159 @@ function analyzeData() {
         let range = computeExpectedRange(cluster, obj.history);
 
         return {
-            cluster,count:obj.count,up:obj.up,down:obj.down,upPct:(upPct*100).toFixed(1)+'%',lastDate:obj.lastDate.toISOString().split('T')[0],
+            cluster,count:obj.count,up:obj.up,down:obj.down,upPct:(upPct*100).toFixed(1)+'%',
+            lastDate:obj.lastDate.toISOString().split('T')[0],
             weightedScore:weightedScore.toFixed(4),confluence,expectedReturns:expReturns,
             expectedHigh:range.expectedHigh, expectedLow:range.expectedLow
         };
     });
-    clusterArray.sort((a,b)=>b.weightedScore-a.weightedScore);
+    clusterArray.sort((a,b)=>parseFloat(b.weightedScore)-parseFloat(a.weightedScore));
     clusterArrayGlobal = clusterArray;
 
-    // Display top 20 clusters
-    let html = "<table><tr><th>Cluster</th><th>Count</th><th>Up</th><th>Down</th><th>Up %</th><th>Last Date</th><th>Weighted Score</th><th>Confluence</th><th>Exp Return 1d</th><th>3d</th><th>5d</th><th>10d</th><th>Exp High</th><th>Exp Low</th></tr>";
-    for(let i=0;i<Math.min(20,clusterArray.length);i++){
+    // Display comprehensive cluster table
+    let html = `<table>
+        <tr>
+            <th>Cluster</th>
+            <th>Count</th>
+            <th>Up</th>
+            <th>Down</th>
+            <th>Up %</th>
+            <th>Last Date</th>
+            <th>Score</th>
+            <th>Confluence</th>
+            <th>1d Return</th>
+            <th>3d Return</th>
+            <th>5d Return</th>
+            <th>10d Return</th>
+            <th>Exp High</th>
+            <th>Exp Low</th>
+        </tr>`;
+    
+    for(let i=0;i<Math.min(25,clusterArray.length);i++){
         const c = clusterArray[i];
-        html += `<tr class="${i===0?'strongest':''}"><td>${c.cluster}</td><td>${c.count}</td><td>${c.up}</td><td>${c.down}</td><td>${c.upPct}</td><td>${c.lastDate}</td><td>${c.weightedScore}</td><td>${c.confluence}</td><td>${c.expectedReturns.R1}</td><td>${c.expectedReturns.R3}</td><td>${c.expectedReturns.R5}</td><td>${c.expectedReturns.R10}</td><td>${c.expectedHigh}</td><td>${c.expectedLow}</td></tr>`;
+        let rowClass = i===0 ? 'strongest' : '';
+        let upPctFloat = parseFloat(c.upPct);
+        let upBadge = upPctFloat > 50 ? `<span class="badge up">▲ ${c.upPct}</span>` : `<span class="badge down">▼ ${c.upPct}</span>`;
+        
+        html += `<tr class="${rowClass}">
+            <td><strong>${c.cluster}</strong></td>
+            <td>${c.count}</td>
+            <td class="profit">${c.up}</td>
+            <td class="loss">${c.down}</td>
+            <td>${upBadge}</td>
+            <td>${c.lastDate}</td>
+            <td><strong>${c.weightedScore}</strong></td>
+            <td><span class="badge confluence">${c.confluence}</span></td>
+            <td class="${parseFloat(c.expectedReturns.R1) > 0 ? 'profit' : 'loss'}">${c.expectedReturns.R1}</td>
+            <td class="${parseFloat(c.expectedReturns.R3) > 0 ? 'profit' : 'loss'}">${c.expectedReturns.R3}</td>
+            <td class="${parseFloat(c.expectedReturns.R5) > 0 ? 'profit' : 'loss'}">${c.expectedReturns.R5}</td>
+            <td class="${parseFloat(c.expectedReturns.R10) > 0 ? 'profit' : 'loss'}">${c.expectedReturns.R10}</td>
+            <td class="profit">${c.expectedHigh}</td>
+            <td class="loss">${c.expectedLow}</td>
+        </tr>`;
     }
     html += "</table>";
     document.getElementById('results').innerHTML = html;
 
-    // Next-Day Forecast
+    // Enhanced Next-Day Forecast
     const lastRow = sortedRows[sortedRows.length-1];
+    const lastRowDailyAvg = (lastRow.open + lastRow.high + lastRow.low + lastRow.close) / 4;
     let closestCluster = clusterArray.reduce((prev,curr)=>{
-        return Math.abs(lastRow.dailyAvg-curr.cluster)<Math.abs(lastRow.dailyAvg-prev.cluster)?curr:prev;
+        return Math.abs(lastRowDailyAvg-parseFloat(curr.cluster))<Math.abs(lastRowDailyAvg-parseFloat(prev.cluster))?curr:prev;
     });
     let nextDayReturn = parseFloat(closestCluster.expectedReturns.R1)/100 + lastRow.momentum1;
     let direction = nextDayReturn>=0?"Up":"Down";
-    document.getElementById('nextDayForecast').innerHTML = `<b>Expected Tomorrow Move:</b> ${(nextDayReturn*100).toFixed(2)}% (${direction}) | <b>Exp High:</b> ${closestCluster.expectedHigh} | <b>Exp Low:</b> ${closestCluster.expectedLow}`;
+    let directionClass = nextDayReturn>=0?"profit":"loss";
+    
+    document.getElementById('nextDayForecast').innerHTML = `
+        <div class="big-number ${directionClass}">${(nextDayReturn*100).toFixed(2)}%</div>
+        <div class="data-point">
+            <span>Direction:</span>
+            <span class="${directionClass}"><strong>${direction}</strong></span>
+        </div>
+        <div class="data-point">
+            <span>Target Cluster:</span>
+            <span><strong>${closestCluster.cluster}</strong></span>
+        </div>
+        <div class="data-point">
+            <span>Expected High:</span>
+            <span class="profit">${closestCluster.expectedHigh}</span>
+        </div>
+        <div class="data-point">
+            <span>Expected Low:</span>
+            <span class="loss">${closestCluster.expectedLow}</span>
+        </div>
+    `;
 
-    // Weekly Forecast with Probabilistic Range
-    let lastWeek = Object.keys(weeklyMap).sort((a,b)=>b-a)[0];
-    let weeklyRows = weeklyMap[lastWeek];
-    let weeklyAvg = weeklyRows.reduce((a,b)=>a+b.dailyAvg,0)/weeklyRows.length;
+    // Enhanced Weekly Forecast with Probabilistic Range
+    let lastWeek = Math.max(...Object.keys(weeklyMap).map(Number));
+    let weeklyRows = weeklyMap[lastWeek] || [];
+    let weeklyAvg = weeklyRows.length > 0 ? weeklyRows.reduce((a,b)=>a+b.dailyAvg,0)/weeklyRows.length : 0;
     let weeklyCluster = (Math.floor(weeklyAvg/0.002)*0.002).toFixed(3);
     let weeklyClusterObj = clustersWeekly[`${lastWeek}-${weeklyCluster}`];
-    let weeklyProb = weeklyClusterObj ? computeProbabilisticRange(weeklyClusterObj.history,5) : {low25:0, median50:0, high75:0};
-    let weeklyLow = (weeklyCluster*(1+weeklyProb.low25)).toFixed(4);
-    let weeklyMid = (weeklyCluster*(1+weeklyProb.median50)).toFixed(4);
-    let weeklyHigh = (weeklyCluster*(1+weeklyProb.high75)).toFixed(4);
-    document.getElementById('weeklyForecast').innerHTML = `<b>Next Week Cluster:</b> ${weeklyCluster} | <b>Count:</b> ${weeklyClusterObj?weeklyClusterObj.count:0} | <b>Probable Low:</b> ${weeklyLow} | <b>Median:</b> ${weeklyMid} | <b>Probable High:</b> ${weeklyHigh}`;
+    
+    let weeklyProb = {low25:0, median50:0, high75:0};
+    if(weeklyClusterObj && weeklyClusterObj.history.length > 0) {
+        weeklyProb = computeProbabilisticRange(weeklyClusterObj.history, 5);
+    }
+    let weeklyLow = (parseFloat(weeklyCluster)*(1+weeklyProb.low25)).toFixed(4);
+    let weeklyMid = (parseFloat(weeklyCluster)*(1+weeklyProb.median50)).toFixed(4);
+    let weeklyHigh = (parseFloat(weeklyCluster)*(1+weeklyProb.high75)).toFixed(4);
+    
+    document.getElementById('weeklyForecast').innerHTML = `
+        <div class="big-number" style="color: #4dd0e1;">${weeklyCluster}</div>
+        <div class="data-point">
+            <span>Count:</span>
+            <span><strong>${weeklyClusterObj?weeklyClusterObj.count:0}</strong></span>
+        </div>
+        <div class="data-point">
+            <span>Probable High:</span>
+            <span class="profit">${weeklyHigh}</span>
+        </div>
+        <div class="data-point">
+            <span>Median:</span>
+            <span>${weeklyMid}</span>
+        </div>
+        <div class="data-point">
+            <span>Probable Low:</span>
+            <span class="loss">${weeklyLow}</span>
+        </div>
+    `;
 
-    // Monthly Forecast with Probabilistic Range
-    let lastMonth = Object.keys(monthlyMap).sort((a,b)=>b-a)[0];
-    let monthlyRows = monthlyMap[lastMonth];
-    let monthlyAvg = monthlyRows.reduce((a,b)=>a+b.dailyAvg,0)/monthlyRows.length;
+    // Enhanced Monthly Forecast with Probabilistic Range
+    let lastMonth = Math.max(...Object.keys(monthlyMap).map(Number));
+    let monthlyRows = monthlyMap[lastMonth] || [];
+    let monthlyAvg = monthlyRows.length > 0 ? monthlyRows.reduce((a,b)=>a+b.dailyAvg,0)/monthlyRows.length : 0;
     let monthlyCluster = (Math.floor(monthlyAvg/0.002)*0.002).toFixed(3);
     let monthlyClusterObj = clustersMonthly[`${lastMonth}-${monthlyCluster}`];
-    let monthlyProb = monthlyClusterObj ? computeProbabilisticRange(monthlyClusterObj.history,20) : {low25:0, median50:0, high75:0};
-    let monthlyLow = (monthlyCluster*(1+monthlyProb.low25)).toFixed(4);
-    let monthlyMid = (monthlyCluster*(1+monthlyProb.median50)).toFixed(4);
-    let monthlyHigh = (monthlyCluster*(1+monthlyProb.high75)).toFixed(4);
-    document.getElementById('monthlyForecast').innerHTML = `<b>Next Month Cluster:</b> ${monthlyCluster} | <b>Count:</b> ${monthlyClusterObj?monthlyClusterObj.count:0} | <b>Probable Low:</b> ${monthlyLow} | <b>Median:</b> ${monthlyMid} | <b>Probable High:</b> ${monthlyHigh}`;
+    
+    let monthlyProb = {low25:0, median50:0, high75:0};
+    if(monthlyClusterObj && monthlyClusterObj.history.length > 0) {
+        monthlyProb = computeProbabilisticRange(monthlyClusterObj.history, 20);
+    }
+    let monthlyLow = (parseFloat(monthlyCluster)*(1+monthlyProb.low25)).toFixed(4);
+    let monthlyMid = (parseFloat(monthlyCluster)*(1+monthlyProb.median50)).toFixed(4);
+    let monthlyHigh = (parseFloat(monthlyCluster)*(1+monthlyProb.high75)).toFixed(4);
+    
+    document.getElementById('monthlyForecast').innerHTML = `
+        <div class="big-number" style="color: #ff9800;">${monthlyCluster}</div>
+        <div class="data-point">
+            <span>Count:</span>
+            <span><strong>${monthlyClusterObj?monthlyClusterObj.count:0}</strong></span>
+        </div>
+        <div class="data-point">
+            <span>Probable High:</span>
+            <span class="profit">${monthlyHigh}</span>
+        </div>
+        <div class="data-point">
+            <span>Median:</span>
+            <span>${monthlyMid}</span>
+        </div>
+        <div class="data-point">
+            <span>Probable Low:</span>
+            <span class="loss">${monthlyLow}</span>
+        </div>
+    `;
 }
 
 function downloadCSV(){
@@ -280,10 +571,12 @@ function downloadCSV(){
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download="MultiTimeframe_Clusters_Forecast.csv";
+    link.download="Comprehensive_Quant_Analysis.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    alert("Analysis exported successfully!");
 }
 </script>
 </body>
