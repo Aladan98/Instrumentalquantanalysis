@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quant Multi-Timeframe Cluster & Forecast Analyzer</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        select, input, button { margin: 5px 0; }
+        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 5px; }
+        th { background-color: #f2f2f2; }
+        .strongest { background-color: #ffeb3b; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<h2>Quant Multi-Timeframe Cluster & Forecast Analyzer</h2>
+
+<p>Upload Excel (.xlsx) with OHLC data (Date,Open,High,Low,Close):</p>
+<input type="file" id="excelFile" accept=".xlsx"/>
+<br>
+<label for="sheetSelect">Select Sheet:</label>
+<select id="sheetSelect"></select>
+<br>
+<label for="yearFilter">Filter by Year (optional):</label>
+<input type="number" id="yearFilter" placeholder="e.g., 2025">
+<br>
+<button onclick="loadSheetData()">Load Sheet Data</button>
+<button onclick="analyzeData()">Analyze</button>
+<button onclick="downloadCSV()">Download CSV</button>
+
+<h3>Top Clusters / Zones</h3>
+<div id="results"></div>
+
+<h3>Best Trading Days (Volatility-Adjusted)</h3>
+<div id="bestDays"></div>
+
+<h3>Next-Day Forecast</h3>
+<div id="nextDayForecast"></div>
+
+<h3>Weekly Forecast</h3>
+<div id="weeklyForecast"></div>
+
+<h3>Monthly Forecast</h3>
+<div id="monthlyForecast"></div>
+
+<script>
+let excelData = {};
+let ohlcRows = [];
+let clusterArrayGlobal = [];
+const maxDaysForExpectedReturn = [1,3,5,10];
+
+document.getElementById('excelFile').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = evt=>{
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, {type:'array'});
+        excelData = workbook;
+        const sheetSelect = document.getElementById('sheetSelect');
+        sheetSelect.innerHTML = '';
+        workbook.SheetNames.forEach(name=>{
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.text = name;
+            sheetSelect.appendChild(opt);
+        });
+        alert('Sheets loaded! Select a sheet and click Load Sheet Data.');
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+function loadSheetData() {
+    const sheetName = document.getElementById('sheetSelect').value;
+    if(!sheetName) { alert('Select a sheet!'); return; }
+    const ws = excelData.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(ws, {defval: ""});
+    ohlcRows = jsonData.map(r=>({
+        date: r.Date || r.date,
+        open: parseFloat(r.Open || r.open),
+        high: parseFloat(r.High || r.high),
+        low: parseFloat(r.Low || r.low),
+        close: parseFloat(r.Close || r.close)
+    })).filter(r=>r.date && !isNaN(r.open) && !isNaN(r.high) && !isNaN(r.low) && !isNaN(r.close));
+    alert(`Loaded ${ohlcRows.length} rows from sheet: ${sheetName}`);
+}
+
+function computeExpectedRange(clusterPrice, historyArray){
+    let highs = historyArray.map(d=>d.high - d.dailyAvg);
+    let lows = historyArray.map(d=>d.dailyAvg - d.low);
+    let meanHigh = highs.reduce((a,b)=>a+b,0)/highs.length || 0;
+    let meanLow = lows.reduce((a,b)=>a+b,0)/lows.length || 0;
+    return {
+        expectedHigh: (parseFloat(clusterPrice)+meanHigh).toFixed(4),
+        expectedLow: (parseFloat(clusterPrice)-meanLow).toFixed(4)
+    };
+}
+
+function computeProbabilisticRange(clusterHistory, futureDays=5){
+    let returns = clusterHistory.map((d,i)=>{
+        if(i+futureDays<clusterHistory.length){
+            return (clusterHistory[i+futureDays].close - d.dailyAvg)/d.dailyAvg;
+        } else return 0;
+    });
+    returns.sort((a,b)=>a-b);
+    let n = returns.length;
+    return {
+        low25: returns[Math.floor(0.25*n)] || 0,
+        median50: returns[Math.floor(0.5*n)] || 0,
+        high75: returns[Math.floor(0.75*n)] || 0
+    };
+}
+
+function analyzeData() {
+    const yearFilter = document.getElementById('yearFilter').value.trim();
+    if(!ohlcRows.length){ alert("Load sheet data first!"); return; }
+
+    let clustersDaily = {}, clustersWeekly = {}, clustersMonthly = {};
+    let bestDays = [], rangeHistory = [], prevClose = null, trueRanges = [];
+    let weeklyMap = {}, monthlyMap = {};
+    let sortedRows = ohlcRows.map(r=>{
+        let d = new Date(r.date);
+        return {...r, dateObj:d};
+    }).sort((a,b)=>a.dateObj-b.dateObj);
+
+    function getWeekNumber(d) {
+        const date = new Date(d.getTime());
+        date.setHours(0,0,0,0);
+        date.setDate(date.getDate() + 4 - (date.getDay()||7));
+        const yearStart = new Date(date.getFullYear(),0,1);
+        return Math.ceil((((date - yearStart)/86400000) + 1)/7);
+    }
+    function getMonth(d){ return d.getMonth()+1; }
+
+    sortedRows.forEach((r,i)=>{
+        if(yearFilter && r.dateObj.getFullYear()!=parseInt(yearFilter)) return;
+
+        r.dailyAvg = (r.open+r.high+r.low+r.close)/4;
+        r.dailyRange = r.high-r.low;
+        r.direction = r.close>r.open?"Up":"Down";
+        r.momentum1 = i>=1 ? (r.close-sortedRows[i-1].close)/sortedRows[i-1].close : 0;
+        r.momentum3 = i>=3 ? (r.close-sortedRows[i-3].close)/sortedRows[i-3].close : 0;
+        r.momentum5 = i>=5 ? (r.close-sortedRows[i-5].close)/sortedRows[i-5].close : 0;
+        r.momentum10 = i>=10 ? (r.close-sortedRows[i-10].close)/sortedRows[i-10].close : 0;
+
+        maxDaysForExpectedReturn.forEach(dN=>{
+            if(i+dN<sortedRows.length){
+                let futureReturn = (sortedRows[i+dN].close - r.close)/r.close;
+                r[`return${dN}`] = futureReturn;
+            }
+        });
+
+        if(prevClose!==null){
+            let tr = Math.max(r.high-r.low, Math.abs(r.high-prevClose), Math.abs(r.low-prevClose));
+            trueRanges.push(tr);
+        }
+        prevClose = r.close;
+        rangeHistory.push(r.dailyRange);
+
+        let clusterDaily = (Math.floor(r.dailyAvg/0.002)*0.002).toFixed(3);
+        if(!clustersDaily[clusterDaily]) clustersDaily[clusterDaily]={count:0, up:0, down:0, lastDate:r.dateObj, returns:[], history:[]};
+        clustersDaily[clusterDaily].count +=1;
+        clustersDaily[clusterDaily].up += r.direction==="Up"?1:0;
+        clustersDaily[clusterDaily].down += r.direction==="Down"?1:0;
+        clustersDaily[clusterDaily].lastDate = r.dateObj;
+        clustersDaily[clusterDaily].history.push(r);
+        maxDaysForExpectedReturn.forEach(dN=>{
+            if(i+dN<sortedRows.length){
+                clustersDaily[clusterDaily].returns.push({days:dN, ret:(sortedRows[i+dN].close - r.close)/r.close});
+            }
+        });
+
+        let week = getWeekNumber(r.dateObj);
+        if(!weeklyMap[week]) weeklyMap[week]=[];
+        weeklyMap[week].push(r);
+        let clusterWeekly = `${week}-${clusterDaily}`;
+        if(!clustersWeekly[clusterWeekly]) clustersWeekly[clusterWeekly]={count:0,history:[]};
+        clustersWeekly[clusterWeekly].count +=1;
+        clustersWeekly[clusterWeekly].history.push(r);
+
+        let month = getMonth(r.dateObj);
+        if(!monthlyMap[month]) monthlyMap[month]=[];
+        monthlyMap[month].push(r);
+        let clusterMonthly = `${month}-${clusterDaily}`;
+        if(!clustersMonthly[clusterMonthly]) clustersMonthly[clusterMonthly]={count:0,history:[]};
+        clustersMonthly[clusterMonthly].count +=1;
+        clustersMonthly[clusterMonthly].history.push(r);
+
+        bestDays.push({date:r.dateObj, range:r.dailyRange, avgPrice:r.dailyAvg});
+    });
+
+    // Best trading days
+    const meanRange = rangeHistory.reduce((a,b)=>a+b,0)/rangeHistory.length;
+    const stdRange = Math.sqrt(rangeHistory.map(x=>Math.pow(x-meanRange,2)).reduce((a,b)=>a+b,0)/rangeHistory.length);
+    bestDays.forEach(d=>d.zScore=(d.range-meanRange)/stdRange);
+    bestDays.sort((a,b)=>b.zScore-a.zScore);
+    let bestHtml = "<table><tr><th>Date</th><th>Daily Range</th><th>Z-Score</th></tr>";
+    for(let i=0;i<Math.min(10,bestDays.length);i++){
+        bestHtml += `<tr><td>${bestDays[i].date.toISOString().split('T')[0]}</td><td>${bestDays[i].range.toFixed(4)}</td><td>${bestDays[i].zScore.toFixed(2)}</td></tr>`;
+    }
+    bestHtml += "</table>";
+    document.getElementById('bestDays').innerHTML = bestHtml;
+
+    // Build cluster array
+    let clusterArray = Object.keys(clustersDaily).map(cluster=>{
+        let obj = clustersDaily[cluster];
+        let avgRange = obj.history.map(d=>d.dailyRange).reduce((a,b)=>a+b,0)/obj.count || 0.001;
+        let upPct = obj.up/obj.count;
+        let recencyFactor = 1/((new Date()-obj.lastDate)/(1000*60*60*24)+1);
+        let confluence = 1; // simple placeholder, can add multi-timeframe weighting
+        let weightedScore = obj.count*(1/avgRange)*upPct*recencyFactor*confluence;
+
+        let expReturns={};
+        maxDaysForExpectedReturn.forEach(dN=>{
+            let returnsForD = obj.returns.filter(x=>x.days===dN).map(x=>x.ret);
+            let avg = returnsForD.reduce((a,b)=>a+b,0)/returnsForD.length || 0;
+            expReturns[`R${dN}`] = (avg*100).toFixed(2)+'%';
+        });
+
+        let range = computeExpectedRange(cluster, obj.history);
+
+        return {
+            cluster,count:obj.count,up:obj.up,down:obj.down,upPct:(upPct*100).toFixed(1)+'%',lastDate:obj.lastDate.toISOString().split('T')[0],
+            weightedScore:weightedScore.toFixed(4),confluence,expectedReturns:expReturns,
+            expectedHigh:range.expectedHigh, expectedLow:range.expectedLow
+        };
+    });
+    clusterArray.sort((a,b)=>b.weightedScore-a.weightedScore);
+    clusterArrayGlobal = clusterArray;
+
+    // Display top 20 clusters
+    let html = "<table><tr><th>Cluster</th><th>Count</th><th>Up</th><th>Down</th><th>Up %</th><th>Last Date</th><th>Weighted Score</th><th>Confluence</th><th>Exp Return 1d</th><th>3d</th><th>5d</th><th>10d</th><th>Exp High</th><th>Exp Low</th></tr>";
+    for(let i=0;i<Math.min(20,clusterArray.length);i++){
+        const c = clusterArray[i];
+        html += `<tr class="${i===0?'strongest':''}"><td>${c.cluster}</td><td>${c.count}</td><td>${c.up}</td><td>${c.down}</td><td>${c.upPct}</td><td>${c.lastDate}</td><td>${c.weightedScore}</td><td>${c.confluence}</td><td>${c.expectedReturns.R1}</td><td>${c.expectedReturns.R3}</td><td>${c.expectedReturns.R5}</td><td>${c.expectedReturns.R10}</td><td>${c.expectedHigh}</td><td>${c.expectedLow}</td></tr>`;
+    }
+    html += "</table>";
+    document.getElementById('results').innerHTML = html;
+
+    // Next-Day Forecast
+    const lastRow = sortedRows[sortedRows.length-1];
+    let closestCluster = clusterArray.reduce((prev,curr)=>{
+        return Math.abs(lastRow.dailyAvg-curr.cluster)<Math.abs(lastRow.dailyAvg-prev.cluster)?curr:prev;
+    });
+    let nextDayReturn = parseFloat(closestCluster.expectedReturns.R1)/100 + lastRow.momentum1;
+    let direction = nextDayReturn>=0?"Up":"Down";
+    document.getElementById('nextDayForecast').innerHTML = `<b>Expected Tomorrow Move:</b> ${(nextDayReturn*100).toFixed(2)}% (${direction}) | <b>Exp High:</b> ${closestCluster.expectedHigh} | <b>Exp Low:</b> ${closestCluster.expectedLow}`;
+
+    // Weekly Forecast with Probabilistic Range
+    let lastWeek = Object.keys(weeklyMap).sort((a,b)=>b-a)[0];
+    let weeklyRows = weeklyMap[lastWeek];
+    let weeklyAvg = weeklyRows.reduce((a,b)=>a+b.dailyAvg,0)/weeklyRows.length;
+    let weeklyCluster = (Math.floor(weeklyAvg/0.002)*0.002).toFixed(3);
+    let weeklyClusterObj = clustersWeekly[`${lastWeek}-${weeklyCluster}`];
+    let weeklyProb = weeklyClusterObj ? computeProbabilisticRange(weeklyClusterObj.history,5) : {low25:0, median50:0, high75:0};
+    let weeklyLow = (weeklyCluster*(1+weeklyProb.low25)).toFixed(4);
+    let weeklyMid = (weeklyCluster*(1+weeklyProb.median50)).toFixed(4);
+    let weeklyHigh = (weeklyCluster*(1+weeklyProb.high75)).toFixed(4);
+    document.getElementById('weeklyForecast').innerHTML = `<b>Next Week Cluster:</b> ${weeklyCluster} | <b>Count:</b> ${weeklyClusterObj?weeklyClusterObj.count:0} | <b>Probable Low:</b> ${weeklyLow} | <b>Median:</b> ${weeklyMid} | <b>Probable High:</b> ${weeklyHigh}`;
+
+    // Monthly Forecast with Probabilistic Range
+    let lastMonth = Object.keys(monthlyMap).sort((a,b)=>b-a)[0];
+    let monthlyRows = monthlyMap[lastMonth];
+    let monthlyAvg = monthlyRows.reduce((a,b)=>a+b.dailyAvg,0)/monthlyRows.length;
+    let monthlyCluster = (Math.floor(monthlyAvg/0.002)*0.002).toFixed(3);
+    let monthlyClusterObj = clustersMonthly[`${lastMonth}-${monthlyCluster}`];
+    let monthlyProb = monthlyClusterObj ? computeProbabilisticRange(monthlyClusterObj.history,20) : {low25:0, median50:0, high75:0};
+    let monthlyLow = (monthlyCluster*(1+monthlyProb.low25)).toFixed(4);
+    let monthlyMid = (monthlyCluster*(1+monthlyProb.median50)).toFixed(4);
+    let monthlyHigh = (monthlyCluster*(1+monthlyProb.high75)).toFixed(4);
+    document.getElementById('monthlyForecast').innerHTML = `<b>Next Month Cluster:</b> ${monthlyCluster} | <b>Count:</b> ${monthlyClusterObj?monthlyClusterObj.count:0} | <b>Probable Low:</b> ${monthlyLow} | <b>Median:</b> ${monthlyMid} | <b>Probable High:</b> ${monthlyHigh}`;
+}
+
+function downloadCSV(){
+    if(clusterArrayGlobal.length===0){ alert("Analyze data first!"); return; }
+    let csv = "Cluster,Count,Up,Down,Up%,LastDate,WeightedScore,Confluence,ExpReturn1d,ExpReturn3d,ExpReturn5d,ExpReturn10d,ExpHigh,ExpLow\n";
+    clusterArrayGlobal.forEach(c=>{
+        csv += `${c.cluster},${c.count},${c.up},${c.down},${c.upPct},${c.lastDate},${c.weightedScore},${c.confluence},${c.expectedReturns.R1},${c.expectedReturns.R3},${c.expectedReturns.R5},${c.expectedReturns.R10},${c.expectedHigh},${c.expectedLow}\n`;
+    });
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download="MultiTimeframe_Clusters_Forecast.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+</body>
+</html>
